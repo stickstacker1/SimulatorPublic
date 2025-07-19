@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ubuntu Shell Simulator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .terminal-container {
+            width: 90%;
+            max-width: 1000px;
+            height: 80%;
+            background: rgba(30, 30, 30, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            animation: slideIn 0.8s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(50px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .terminal-header {
+            background: #2d2d30;
+            padding: 12px 20px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .control {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .close { background: #ff5f57; }
+        .minimize { background: #ffbd2e; }
+        .maximize { background: #28ca42; }
+        
+        .terminal-title {
+            margin-left: 20px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .terminal-body {
+            height: calc(100% - 50px);
+            background: #1e1e1e;
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .terminal-output {
+            color: #f8f8f2;
+            line-height: 1.6;
+            font-size: 14px;
+            white-space: pre-wrap;
+            margin-bottom: 10px;
+        }
+        
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            position: sticky;
+            bottom: 0;
+            background: #1e1e1e;
+            padding-top: 5px;
+        }
+        
+        .prompt {
+            color: #50fa7b;
+            font-weight: bold;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+        
+        .terminal-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #f8f8f2;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            caret-color: #50fa7b;
+        }
+        
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+            background: #50fa7b;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .error { color: #ff5555; }
+        .success { color: #50fa7b; }
+        .info { color: #8be9fd; }
+        .warning { color: #f1fa8c; }
+        
+        .file { color: #f8f8f2; }
+        .directory { color: #8be9fd; font-weight: bold; }
+        .executable { color: #50fa7b; font-weight: bold; }
+        
+        .ascii-art {
+            color: #bd93f9;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <div class="window-controls">
+                <div class="control close"></div>
+                <div class="control minimize"></div>
+                <div class="control maximize"></div>
+            </div>
+            <div class="terminal-title">ubuntu@simulator: ~</div>
+        </div>
+        <div class="terminal-body" id="terminal">
+            <div class="terminal-output ascii-art">
+██╗   ██╗██████╗ ██╗   ██╗███╗   ██╗████████╗██╗   ██╗
+██║   ██║██╔══██╗██║   ██║████╗  ██║╚══██╔══╝██║   ██║
+██║   ██║██████╔╝██║   ██║██╔██╗ ██║   ██║   ██║   ██║
+██║   ██║██╔══██╗██║   ██║██║╚██╗██║   ██║   ██║   ██║
+╚██████╔╝██████╔╝╚██████╔╝██║ ╚████║   ██║   ╚██████╔╝
+ ╚═════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝   ╚═╝    ╚═════╝ 
+</div>
+            <div class="terminal-output success">Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-76-generic x86_64)</div>
+            <div class="terminal-output">
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+Last login: Fri Jul 18 14:30:25 2025 from 192.168.1.100
+</div>
+            <div class="terminal-input-line">
+                <span class="prompt">ubuntu@simulator:~$</span>
+                <input type="text" class="terminal-input" id="input" autocomplete="off" spellcheck="false">
+                <span class="cursor" id="cursor"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class UbuntuShell {
+            constructor() {
+                this.currentPath = '/home/ubuntu';
+                this.username = 'ubuntu';
+                this.hostname = 'simulator';
+                this.history = [];
+                this.historyIndex = -1;
+                this.fileSystem = this.createFileSystem();
+                
+                this.input = document.getElementById('input');
+                this.terminal = document.getElementById('terminal');
+                this.cursor = document.getElementById('cursor');
+                
+                this.setupEventListeners();
+                this.input.focus();
+            }
+            
+            createFileSystem() {
+                return {
+                    '/': {
+                        type: 'directory',
+                        contents: {
+                            'home': { type: 'directory', contents: {
+                                'ubuntu': { type: 'directory', contents: {
+                                    'Documents': { type: 'directory', contents: {
+                                        'README.txt': { type: 'file', content: 'Welcome to Ubuntu Shell Simulator!\nThis is a demonstration file.' },
+                                        'projects': { type: 'directory', contents: {} }
+                                    }},
+                                    'Downloads': { type: 'directory', contents: {} },
+                                    'Desktop': { type: 'directory', contents: {
+                                        'hello.py': { type: 'file', content: '#!/usr/bin/env python3\nprint("Hello, World!")' }
+                                    }},
+                                    '.bashrc': { type: 'file', content: '# ~/.bashrc: executed by bash(1) for non-login shells.' },
+                                    'example.txt': { type: 'file', content: 'This is an example text file.\nYou can read it using cat or less.' }
+                                }}
+                            }},
+                            'etc': { type: 'directory', contents: {
+                                'hostname': { type: 'file', content: 'simulator' },
+                                'passwd': { type: 'file', content: 'root:x:0:0:root:/root:/bin/bash\nubuntu:x:1000:1000:ubuntu:/home/ubuntu:/bin/bash' }
+                            }},
+                            'usr': { type: 'directory', contents: {
+                                'bin': { type: 'directory', contents: {} },
+                                'local': { type: 'directory', contents: {} }
+                            }},
+                            'var': { type: 'directory', contents: {
+                                'log': { type: 'directory', contents: {} }
+                            }},
+                            'tmp': { type: 'directory', contents: {} }
+                        }
+                    }
+                };
+            }
+            
+            setupEventListeners() {
+                this.input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        this.executeCommand(this.input.value);
+                        this.input.value = '';
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        this.navigateHistory(-1);
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        this.navigateHistory(1);
+                    } else if (e.key === 'Tab') {
+                        e.preventDefault();
+                        this.autoComplete();
+                    }
+                });
+                
+                document.addEventListener('click', () => {
+                    this.input.focus();
+                });
+            }
+            
+            navigateHistory(direction) {
+                if (this.history.length === 0) return;
+                
+                this.historyIndex += direction;
+                if (this.historyIndex < 0) this.historyIndex = 0;
+                if (this.historyIndex >= this.history.length) this.historyIndex = this.history.length - 1;
+                
+                this.input.value = this.history[this.historyIndex];
+            }
+            
+            autoComplete() {
+                const input = this.input.value;
+                const parts = input.split(' ');
+                const lastPart = parts[parts.length - 1];
+                
+                if (parts.length === 1) {
+                    // Command completion
+                    const commands = Object.keys(this.commands).filter(cmd => cmd.startsWith(lastPart));
+                    if (commands.length === 1) {
+                        this.input.value = commands[0] + ' ';
+                    }
+                } else {
+                    // File completion
+                    const currentDir = this.getCurrentDirectory();
+                    if (currentDir && currentDir.contents) {
+                        const matches = Object.keys(currentDir.contents).filter(name => name.startsWith(lastPart));
+                        if (matches.length === 1) {
+                            parts[parts.length - 1] = matches[0];
+                            this.input.value = parts.join(' ');
+                        }
+                    }
+                }
+            }
+            
+            executeCommand(input) {
+                const trimmed = input.trim();
+                if (!trimmed) {
+                    this.addToTerminal('', '');
+                    return;
+                }
+                
+                this.history.unshift(trimmed);
+                this.historyIndex = -1;
+                
+                this.addToTerminal(`${this.getPrompt()}${trimmed}`, '');
+                
+                const [command, ...args] = trimmed.split(' ');
+                
+                if (this.commands[command]) {
+                    this.commands[command](args);
+                } else {
+                    this.addToTerminal(`bash: ${command}: command not found`, 'error');
+                }
+            }
+            
+            getPrompt() {
+                const shortPath = this.currentPath === `/home/${this.username}` ? '~' : this.currentPath;
+                return `${this.username}@${this.hostname}:${shortPath}$ `;
+            }
+            
+            addToTerminal(text, className = '') {
+                const output = document.createElement('div');
+                output.className = `terminal-output ${className}`;
+                output.textContent = text;
+                this.terminal.insertBefore(output, this.terminal.lastElementChild);
+                this.terminal.scrollTop = this.terminal.scrollHeight;
+                this.updatePrompt();
+            }
+            
+            updatePrompt() {
+                const promptElement = this.terminal.querySelector('.prompt');
+                promptElement.textContent = this.getPrompt();
+            }
+            
+            getCurrentDirectory() {
+                const pathParts = this.currentPath === '/' ? [''] : this.currentPath.split('/').filter(p => p);
+                let current = this.fileSystem['/'];
+                
+                for (const part of pathParts) {
+                    if (part && current.contents && current.contents[part]) {
+                        current = current.contents[part];
+                    } else {
+                        return null;
+                    }
+                }
+                
+                return current;
+            }
+            
+            resolvePath(path) {
+                if (path.startsWith('/')) {
+                    return path;
+                } else if (path === '~') {
+                    return `/home/${this.username}`;
+                } else if (path.startsWith('~/')) {
+                    return `/home/${this.username}/${path.slice(2)}`;
+                } else if (path === '..') {
+                    const parts = this.currentPath.split('/').filter(p => p);
+                    parts.pop();
+                    return parts.length === 0 ? '/' : '/' + parts.join('/');
+                } else if (path === '.') {
+                    return this.currentPath;
+                } else {
+                    return this.currentPath === '/' ? `/${path}` : `${this.currentPath}/${path}`;
+                }
+            }
+            
+            getFileAt(path) {
+                const fullPath = this.resolvePath(path);
+                const pathParts = fullPath === '/' ? [''] : fullPath.split('/').filter(p => p);
+                let current = this.fileSystem['/'];
+                
+                for (const part of pathParts) {
+                    if (part && current.contents && current.contents[part]) {
+                        current = current.contents[part];
+                    } else {
+                        return null;
+                    }
+                }
+                
+                return current;
+            }
+            
+            commands = {
+                ls: (args) => {
+                    const showHidden = args.includes('-a') || args.includes('-la') || args.includes('-al');
+                    const longFormat = args.includes('-l') || args.includes('-la') || args.includes('-al');
+                    const path = args.find(arg => !arg.startsWith('-')) || '.';
+                    
+                    const targetDir = this.getFileAt(path);
+                    if (!targetDir) {
+                        this.addToTerminal(`ls: cannot access '${path}': No such file or directory`, 'error');
+                        return;
+                    }
+                    
+                    if (targetDir.type !== 'directory') {
+                        this.addToTerminal(path);
+                        return;
+                    }
+                    
+                    const entries = Object.entries(targetDir.contents)
+                        .filter(([name]) => showHidden || !name.startsWith('.'))
+                        .sort(([a], [b]) => a.localeCompare(b));
+                    
+                    if (longFormat) {
+                        entries.forEach(([name, item]) => {
+                            const type = item.type === 'directory' ? 'd' : '-';
+                            const permissions = item.type === 'directory' ? 'rwxr-xr-x' : 'rw-r--r--';
+                            const size = item.type === 'directory' ? '4096' : (item.content?.length || '0');
+                            const date = 'Jul 18 14:30';
+                            const className = item.type === 'directory' ? 'directory' : 'file';
+                            this.addToTerminal(`${type}${permissions} 1 ubuntu ubuntu ${size.padStart(8)} ${date} ${name}`, className);
+                        });
+                    } else {
+                        const names = entries.map(([name, item]) => {
+                            const className = item.type === 'directory' ? 'directory' : 'file';
+                            return `<span class="${className}">${name}</span>`;
+                        }).join('  ');
+                        this.terminal.insertBefore((() => {
+                            const div = document.createElement('div');
+                            div.className = 'terminal-output';
+                            div.innerHTML = names;
+                            return div;
+                        })(), this.terminal.lastElementChild);
+                        this.updatePrompt();
+                    }
+                },
+                
+                cd: (args) => {
+                    const path = args[0] || '~';
+                    const targetPath = this.resolvePath(path);
+                    const targetDir = this.getFileAt(targetPath);
+                    
+                    if (!targetDir) {
+                        this.addToTerminal(`bash: cd: ${path}: No such file or directory`, 'error');
+                        return;
+                    }
+                    
+                    if (targetDir.type !== 'directory') {
+                        this.addToTerminal(`bash: cd: ${path}: Not a directory`, 'error');
+                        return;
+                    }
+                    
+                    this.currentPath = targetPath;
+                },
+                
+                pwd: () => {
+                    this.addToTerminal(this.currentPath);
+                },
+                
+                cat: (args) => {
+                    if (args.length === 0) {
+                        this.addToTerminal('cat: missing file operand', 'error');
+                        return;
+                    }
+                    
+                    const file = this.getFileAt(args[0]);
+                    if (!file) {
+                        this.addToTerminal(`cat: ${args[0]}: No such file or directory`, 'error');
+                        return;
+                    }
+                    
+                    if (file.type === 'directory') {
+                        this.addToTerminal(`cat: ${args[0]}: Is a directory`, 'error');
+                        return;
+                    }
+                    
+                    this.addToTerminal(file.content || '');
+                },
+                
+                echo: (args) => {
+                    this.addToTerminal(args.join(' '));
+                },
+                
+                whoami: () => {
+                    this.addToTerminal(this.username);
+                },
+                
+                date: () => {
+                    this.addToTerminal(new Date().toString());
+                },
+                
+                uname: (args) => {
+                    if (args.includes('-a')) {
+                        this.addToTerminal('Linux simulator 5.15.0-76-generic #83-Ubuntu SMP Thu Jun 15 19:16:32 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux');
+                    } else {
+                        this.addToTerminal('Linux');
+                    }
+                },
+                
+                clear: () => {
+                    const outputs = this.terminal.querySelectorAll('.terminal-output');
+                    outputs.forEach(output => output.remove());
+                },
+                
+                history: () => {
+                    this.history.slice().reverse().forEach((cmd, index) => {
+                        this.addToTerminal(`${index + 1}  ${cmd}`);
+                    });
+                },
+                
+                help: () => {
+                    const helpText = `Available commands:
+ls [-l] [-a] [path]  - List directory contents
+cd [path]           - Change directory
+pwd                 - Print working directory
+cat <file>          - Display file contents
+echo <text>         - Display text
+whoami             - Display current user
+date               - Display current date and time
+uname [-a]         - Display system information
+clear              - Clear terminal screen
+history            - Show command history
+mkdir <dir>        - Create directory
+rmdir <dir>        - Remove empty directory
+touch <file>       - Create empty file
+rm <file>          - Remove file
+cp <src> <dest>    - Copy file
+mv <src> <dest>    - Move/rename file
+grep <pattern>     - Search for text patterns
+ps                 - Show running processes
+top                - Display running processes
+df                 - Show disk space usage
+free               - Show memory usage
+help               - Show this help message`;
+                    this.addToTerminal(helpText, 'info');
+                },
+                
+                mkdir: (args) => {
+                    if (args.length === 0) {
+                        this.addToTerminal('mkdir: missing operand', 'error');
+                        return;
+                    }
+                    
+                    const dirName = args[0];
+                    const parentPath = this.currentPath;
+                    const parentDir = this.getCurrentDirectory();
+                    
+                    if (parentDir.contents[dirName]) {
+                        this.addToTerminal(`mkdir: cannot create directory '${dirName}': File exists`, 'error');
+                        return;
+                    }
+                    
+                    parentDir.contents[dirName] = { type: 'directory', contents: {} };
+                    this.addToTerminal('', '');
+                },
+                
+                touch: (args) => {
+                    if (args.length === 0) {
+                        this.addToTerminal('touch: missing file operand', 'error');
+                        return;
+                    }
+                    
+                    const fileName = args[0];
+                    const parentDir = this.getCurrentDirectory();
+                    
+                    if (!parentDir.contents[fileName]) {
+                        parentDir.contents[fileName] = { type: 'file', content: '' };
+                    }
+                    this.addToTerminal('', '');
+                },
+                
+                ps: () => {
+                    this.addToTerminal('  PID TTY          TIME CMD');
+                    this.addToTerminal('12345 pts/0    00:00:01 bash');
+                    this.addToTerminal('12346 pts/0    00:00:00 ps');
+                },
+                
+                top: () => {
+                    this.addToTerminal('top - 14:30:25 up 2 days,  3:45,  1 user,  load average: 0.08, 0.05, 0.01', 'info');
+                    this.addToTerminal('Tasks: 156 total,   1 running, 155 sleeping,   0 stopped,   0 zombie');
+                    this.addToTerminal('%Cpu(s):  2.1 us,  0.8 sy,  0.0 ni, 96.9 id,  0.2 wa,  0.0 hi,  0.0 si,  0.0 st');
+                },
+                
+                df: () => {
+                    this.addToTerminal('Filesystem     1K-blocks    Used Available Use% Mounted on');
+                    this.addToTerminal('/dev/sda1       20971520 8388608  12582912  40% /');
+                    this.addToTerminal('tmpfs            1048576       0   1048576   0% /tmp');
+                },
+                
+                free: () => {
+                    this.addToTerminal('              total        used        free      shared  buff/cache   available');
+                    this.addToTerminal('Mem:        8196608     3145728     4194304      262144      856576     4718592');
+                    this.addToTerminal('Swap:       2097152           0     2097152');
+                }
+            };
+        }
+        
+        // Initialize the shell when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            new UbuntuShell();
+        });
+    </script>
+</body>
+</html>
